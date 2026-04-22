@@ -1,4 +1,3 @@
-
 import os
 import shutil
 import sys
@@ -37,9 +36,6 @@ def format_size(size_bytes):
 
 
 def scan_directory_recursive(path):
-    """
-    Optimized O(N) scan.
-    """
     entries = []
     total_size = 0
 
@@ -80,6 +76,39 @@ def scan_directory_recursive(path):
     return entries, total_size
 
 
+def format_analysis_text(data: dict) -> str:
+    lines = []
+
+    lines.append(f"📁 Path: {data.get('path')}")
+    lines.append(f"📦 Total Size: {data.get('total_size_human')}")
+    lines.append("")
+
+    if "entries" in data:
+        lines.append("📄 Contents:\n")
+
+        for entry in data["entries"]:
+            indent = "  " * entry.get("depth", 0)
+            size = format_size(entry["size_bytes"])
+
+            if entry["type"] == "file":
+                lines.append(f"{indent}- {entry['name']} ({size})")
+            else:
+                lines.append(f"{indent}📂 {entry['name']} ({size})")
+
+    elif "items" in data:
+        lines.append("📄 Contents:\n")
+
+        for item in data["items"]:
+            size = format_size(item["size"])
+
+            if item["type"] == "file":
+                lines.append(f"- {item['name']} ({size})")
+            else:
+                lines.append(f"📂 {item['name']} ({size})")
+
+    return "\n".join(lines)
+
+
 # ---------------------------
 # Tools
 # ---------------------------
@@ -115,23 +144,26 @@ def organize_directory(path: str) -> dict:
 
 
 @mcp.tool()
-def analyze_directory(path: str, recursive: bool = False) -> dict:
+def analyze_directory(path: str, recursive: bool = False, as_text: bool = True):
     """
-    Analyze directory and return structured file/folder data.
+    Analyze directory and return structured data or clean text output.
     """
     if not os.path.exists(path):
         return {"error": "Path does not exist"}
 
     if recursive:
         entries, total_size = scan_directory_recursive(path)
-        return {
+
+        data = {
             "path": path,
             "total_size_bytes": total_size,
             "total_size_human": format_size(total_size),
             "entries": entries,
         }
 
-    # non-recursive (fast)
+        return format_analysis_text(data) if as_text else data
+
+    # Non-recursive
     result = []
     total_size = 0
 
@@ -156,12 +188,14 @@ def analyze_directory(path: str, recursive: bool = False) -> dict:
         except Exception as e:
             print(f"[ERROR] Scan failed: {item} → {e}", file=sys.stderr)
 
-    return {
+    data = {
         "path": path,
         "total_size_bytes": total_size,
         "total_size_human": format_size(total_size),
         "items": result,
     }
+
+    return format_analysis_text(data) if as_text else data
 
 
 # ---------------------------
@@ -174,4 +208,3 @@ if __name__ == "__main__":
         mcp.run()
     except Exception as e:
         print(f"[FATAL] Server crashed: {e}", file=sys.stderr)
-
